@@ -1,0 +1,80 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v3
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+
+      - name: Run the Maven verify phase
+        run: mvn --batch-mode --update-snapshots verify
+
+      - name: Set up QEMU #Dockerfile에서 arm64v8 이미지를 사용하기 때문에 설정
+        uses: docker/setup-qemu-action@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_EB_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Set Environment Variable
+        run: |
+          echo "REPOSITORY_NAME=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        #EC2 인스턴스 타입이 ARM이기 때문에 --platform=linux/arm64v8 사용
+        run: |
+          docker buildx build --platform=linux/arm64v8 -t $ECR_REGISTRY/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }} .
+          docker push $ECR_REGISTRY/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }}
+          echo "::set-output name=image::$ECR_REGISTRY/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }}"
+
+      - name: Get current time
+        uses: 1466587594/get-current-time@v2
+        id: current-time
+        with:
+          format: YYYY-MM-DDTHH-mm-ss
+          utcOffset: "+09:00"
+
+      - name: Generate deployment package
+        run: |
+          mkdir -p deploy
+          cp -r .ebextensions deploy/.ebextensions
+          cp -r .platform deploy/.platform
+          cp Dockerrun.aws.json deploy/Dockerrun.aws.json
+          sed -i "s/{ECR_REGISTRY}/${{ steps.login-ecr.outputs.registry }}/" deploy/Dockerrun.aws.json
+          sed -i "s/{REPOSITORY_NAME}/${{ env.REPOSITORY_NAME }}/" deploy/Dockerrun.aws.json
+          sed -i "s/{TAG}/${{ env.IMAGE_TAG }}/" deploy/Dockerrun.aws.json
+          cd deploy && zip -r deploy.zip .
+
+      - name: Deploy to EB
+        uses: einaregilsson/beanstalk-deploy@v20
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: share-food-server
+          environment_name: share-food
+          version_label: ${{ env.REPOSITORY_NAME }}-${{steps.current-time.outputs.formattedTime}}
+          region: ${{ secrets.AWS_EB_REGION }}
+          deployment_package: deploy/deploy.zip
+

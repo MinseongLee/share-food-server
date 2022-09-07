@@ -1,0 +1,72 @@
+server:
+  port: ${server.port}
+  tomcat:
+    uri-encoding: UTF-8
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${rds.food.host}:${rds.food.port}/${rds.food.db.name}?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${rds.food.user}
+    password: ${rds.food.password}
+    dbcp2:
+      test-on-borrow: true
+      validation-query: SELECT 1
+  jpa:
+    hibernate:
+      naming:
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 900
+
+springdoc:
+  version: v1
+  swagger-ui:
+    path: /api-doc.html
+  paths-to-match:
+    - /api/**
+
+---
+server:
+  port: 5000
+
+spring:
+  config:
+    activate:
+      on-profile: default
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://food.cyh40yu6z1qx.ap-northeast-2.rds.amazonaws.com:3306/food?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true
+    username: caring
+    password: zbqmzbqm1!
+
+# value in table
+logging:
+  level:
+    org:
+      hibernate:
+        type:
+          descriptor:
+            sql:
+              BasicBinder: TRACE
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod

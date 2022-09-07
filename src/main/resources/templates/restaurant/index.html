@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments :: head"></head>
+<body class="bg-light">
+    <div th:replace="fragments :: main-nav"></div>
+    <div class="container">
+        <br>
+        <br>
+        <nav class="nav nav-pills nav-fill">
+            <a class="nav-item nav-link link-dark" href="/restaurant" th:classappend="${#httpServletRequest.getRequestURI() == '/restaurant' ? 'active':''}">모든종류</a>
+            <a class="nav-item nav-link link-dark" href="/restaurant/korean" th:classappend="${#httpServletRequest.getRequestURI() == '/restaurant/korean' ? 'active':''}">한식</a>
+            <a class="nav-item nav-link link-dark" href="/restaurant/chinese" th:classappend="${#httpServletRequest.getRequestURI() == '/restaurant/chinese' ? 'active':''}">중식</a>
+            <a class="nav-item nav-link link-dark" href="/restaurant/western" th:classappend="${#httpServletRequest.getRequestURI() == '/restaurant/western' ? 'active':''}">양식</a>
+            <a class="nav-item nav-link link-dark" href="/restaurant/japanese" th:classappend="${#httpServletRequest.getRequestURI() == '/restaurant/japanese' ? 'active':''}">일식</a>
+            <a class="nav-item nav-link link-dark" href="/restaurant/something" th:classappend="${#httpServletRequest.getRequestURI() == '/restaurant/something' ? 'active':''}">기타</a>
+            <a class="nav-item nav-link link-dark" href="/restaurant/delivery" th:classappend="${#httpServletRequest.getRequestURI() == '/restaurant/delivery' ? 'active':''}">배달</a>
+        </nav>
+        <br>
+        <br>
+        <div class="row">
+            <div class="col-md-4" th:each="restaurant: ${restaurants.getContent()}">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title context" th:text="${restaurant.name}"></h5>
+                        <p class="card-text context">
+                            <span>종류: </span>
+                            <span th:text="${restaurant.foodType.getName()}"></span>
+                        </p>
+                        <p class="card-text context">
+                            <span>설명: </span>
+                            <span th:text="${restaurant.description}"></span>
+                        </p>
+                        <p class="card-text context">
+                            <span>url: </span>
+                            <a th:href="${restaurant.url}" target="_blank">
+                                식당 정보 url
+                            </a>
+                        </p>
+                        <p class="card-text context">
+                            <a th:href="@{'/restaurant/' + ${restaurant.id}}" class="text-decoration-none btn btn-outline-primary">
+                                상세
+                            </a>
+                            <a th:href="@{'/restaurant/update/' + ${restaurant.id}}" class="text-decoration-none btn btn-outline-primary">
+                                수정
+                            </a>
+                        </p>
+                        <p class="card-text context">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text">후기</span>
+                            </div>
+                            <input type="text" class="form-control get-review" placeholder="엔터를 입력하시면 저장됩니다.">
+                            <button class="btn btn-primary btn-block get-review-button" type="button" aria-describedby="submitHelp">후기등록</button>
+                            <span class="restaurant-id" th:text="${restaurant.id}" hidden></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row justify-content-center">
+            <div class="col-sm-10">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" th:classappend="${!restaurants.hasPrevious()} ? disabled">
+                            <a th:href="@{${#httpServletRequest.getRequestURI()} + '?page=' + ${restaurants.getNumber() - 1}}" class="page-link" href="#">Previous</a>
+                        </li>
+                        <li class="page-item" th:classappend="${index == restaurants.getNumber()} ? active"
+                            th:each="index: ${#numbers.sequence(0, restaurants.getTotalPages() - 1)}" th:if="${restaurants.getTotalPages()>0}">
+                            <a th:href="@{${#httpServletRequest.getRequestURI()} + '?page=' + ${index}}" th:text="${index + 1}" class="page-link" href="#"></a>
+                        </li>
+                        <li class="page-item" th:classappend="${!restaurants.hasNext()} ? disabled">
+                            <a th:href="@{${#httpServletRequest.getRequestURI()} + '?page=' + ${restaurants.getNumber() + 1}}" class="page-link" href="#">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="fragments :: footer"></div>
+</body>
+</html>
+
+<script type="application/javascript">
+
+    $(function () {
+
+        var csrfToken = $("meta[name='_csrf']").attr("content");
+        var csrfHeader = $("meta[name='_csrf_header']").attr("content");
+        $(document).ajaxSend(function (e, xhr, options) {
+            xhr.setRequestHeader(csrfHeader, csrfToken);
+        });
+        $('.get-review').keypress(function (e) {
+            if (e.keyCode === 13) {
+                var review_id = $(this);
+                var restaurant_id = $(this).next().next();
+                $.ajax({
+                    url: '/comment/' + restaurant_id.text(),
+                    type: 'POST',
+                    data: {
+                        review: review_id.val()
+                    },
+                    dataType: 'JSON',
+                }).done(function (data, status) {
+                    // data.statusCode
+                    alert(data.resultMsg);
+                    review_id.val('');
+                }).fail(function (data, status){
+                    alert(data.resultMsg);
+                    // alert(data.responseJSON.message);
+                });
+            }
+        });
+
+        $('.get-review-button').on('click', function () {
+            var review_id = $(this).prev();
+            var restaurant_id = $(this).next();
+            $.ajax({
+                url: '/comment/' + restaurant_id.text(),
+                type: 'POST',
+                data: {
+                    review: review_id.val()
+                },
+                dataType: 'JSON',
+            }).done(function (data, status) {
+                alert(data.resultMsg);
+                review_id.val('');
+            }).fail(function (data, status){
+                alert(data.resultMsg);
+            });
+        });
+    });
+</script>
